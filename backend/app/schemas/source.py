@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.source import ScraperRunStatus, SourceType
 
 

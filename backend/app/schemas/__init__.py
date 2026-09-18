@@ -1,37 +1,37 @@
-from app.schemas.common import PaginatedResponse, MessageResponse
-from app.schemas.user import (
-    UserRegister,
-    UserLogin,
-    RefreshTokenRequest,
-    TokenResponse,
-    UserResponse,
-    UserUpdate,
+from app.schemas.application import (
+    JobApplicationCreate,
+    JobApplicationResponse,
+    JobApplicationUpdate,
 )
-from app.schemas.preference import (
-    JobPreferenceCreate,
-    JobPreferenceUpdate,
-    JobPreferenceResponse,
-)
-from app.schemas.source import (
-    SourceCreate,
-    SourceUpdate,
-    SourceResponse,
-    ScraperRunResponse,
-)
+from app.schemas.common import MessageResponse, PaginatedResponse, PlatformStatsResponse
 from app.schemas.job import (
     JobResponse,
     JobSearchFilter,
     MatchReason,
     MatchScoreResponse,
 )
-from app.schemas.application import (
-    JobApplicationCreate,
-    JobApplicationUpdate,
-    JobApplicationResponse,
-)
 from app.schemas.notification import (
-    NotificationConfigUpdate,
     NotificationConfigResponse,
+    NotificationConfigUpdate,
+)
+from app.schemas.preference import (
+    JobPreferenceCreate,
+    JobPreferenceResponse,
+    JobPreferenceUpdate,
+)
+from app.schemas.source import (
+    ScraperRunResponse,
+    SourceCreate,
+    SourceResponse,
+    SourceUpdate,
+)
+from app.schemas.user import (
+    RefreshTokenRequest,
+    TokenResponse,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+    UserUpdate,
 )
 
 __all__ = [
@@ -59,4 +59,5 @@ __all__ = [
     "JobApplicationResponse",
     "NotificationConfigUpdate",
     "NotificationConfigResponse",
+    "PlatformStatsResponse",
 ]

@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: job_intel_postgres_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set strong POSTGRES_PASSWORD in prod}
+      POSTGRES_DB: ${POSTGRES_DB:-job_intelligence_db}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jobuser} -d ${POSTGRES_DB:-job_intelligence_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: job_intel_redis_prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-""}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: base
+    container_name: job_intel_api_prod
+    restart: unless-stopped
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - SYNC_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY:?Set strong SECRET_KEY in prod}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Set strong JWT_SECRET_KEY in prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: worker
+    container_name: job_intel_worker_prod
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - SYNC_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: base
+    container_name: job_intel_scheduler_prod
+    restart: unless-stopped
+    command: celery -A app.celery_app beat -l info --scheduler celery.beat:PersistentScheduler
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - SYNC_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-jobuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-job_intelligence_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: job_intel_frontend_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_prod_data:

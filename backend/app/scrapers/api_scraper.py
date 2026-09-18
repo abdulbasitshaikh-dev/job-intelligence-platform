@@ -1,10 +1,10 @@
 import asyncio
 from typing import Any, Dict, List
+
 import httpx
 
 from app.config import settings
-from app.core.logging import logger
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
 from app.services.normalization import NormalizationService
 
 
@@ -24,7 +24,7 @@ class APIScraper(BaseScraper):
             response = await client.get(self.base_url, params=self.params)
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract list from nested key if configured (e.g. data["jobs"])
             items_key = self.config.get("items_key")
             if items_key and isinstance(data, dict):

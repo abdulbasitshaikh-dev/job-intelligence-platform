@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 import httpx
 
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
 from app.services.normalization import NormalizationService
 
 

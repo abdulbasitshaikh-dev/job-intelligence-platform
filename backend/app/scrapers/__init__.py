@@ -1,6 +1,6 @@
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
-from app.scrapers.http_scraper import HTTPScraper
 from app.scrapers.api_scraper import APIScraper
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
+from app.scrapers.http_scraper import HTTPScraper
 
 # Playwright is an optional dependency; gracefully degrade if not installed
 try:

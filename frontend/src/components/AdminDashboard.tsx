@@ -1,27 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Play, Activity, Database, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { Source, ScraperRun, SystemStats } from '../types';
+import { Shield, Play, Activity, Database, CheckCircle, AlertTriangle, Clock, RefreshCw, Server, Zap, CheckCircle2 } from 'lucide-react';
+import { Source, ScraperRun, SystemStats, SystemHealth } from '../types';
 import { ApiClient } from '../lib/api';
 
 export const AdminDashboard: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
   const [runs, setRuns] = useState<ScraperRun[]>([]);
   const [stats, setStats] = useState<SystemStats | null>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [srcRes, runsRes, statsRes] = await Promise.all([
+      const [srcRes, runsRes, statsRes, healthRes] = await Promise.all([
         ApiClient.fetch<Source[]>('/admin/sources'),
         ApiClient.fetch<any>('/admin/scraper-runs?page_size=10'),
         ApiClient.fetch<SystemStats>('/admin/stats'),
+        ApiClient.fetch<SystemHealth>('/admin/health').catch(() => null),
       ]);
       setSources(srcRes);
       setRuns(runsRes.items || []);
       setStats(statsRes);
+      if (healthRes) setHealth(healthRes);
     } catch (err: any) {
-      alert(err.message || 'Failed to fetch admin data');
+      setActionNotice('Failed to fetch admin data: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -48,10 +53,26 @@ export const AdminDashboard: React.FC = () => {
       const res: any = await ApiClient.fetch(`/admin/sources/${sourceId}/scrape`, {
         method: 'POST',
       });
-      alert(res.message || `Scrape task triggered for ${name}`);
+      setActionNotice(res.message || `Scrape task triggered for ${name}`);
       setTimeout(fetchData, 2000);
+      setTimeout(() => setActionNotice(null), 6000);
     } catch (err: any) {
       alert(err.message || 'Failed to trigger scrape task');
+    }
+  };
+
+  const handleTriggerSyncAll = async () => {
+    setSyncingAll(true);
+    setActionNotice(null);
+    try {
+      const res: any = await ApiClient.fetch('/admin/sync-all', { method: 'POST' });
+      setActionNotice(`✓ ${res.message || 'Scrape queued for all active sources'}`);
+      setTimeout(fetchData, 3000);
+    } catch (err: any) {
+      setActionNotice(`✗ Sync failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setSyncingAll(false);
+      setTimeout(() => setActionNotice(null), 8000);
     }
   };
 
@@ -66,22 +87,102 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white font-['Outfit'] flex items-center space-x-2">
-          <Shield className="w-6 h-6 text-cyan-400" />
-          <span>System Administration Portal</span>
-        </h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Monitor discovery engine health, trigger automated scrapers, inspect run telemetry
-        </p>
+      {/* Header & Global Sync Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white font-['Outfit'] flex items-center space-x-2">
+            <Shield className="w-6 h-6 text-cyan-400" />
+            <span>System Administration Portal</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Monitor pipeline health, trigger scrapers, and inspect run telemetry
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          {actionNotice && (
+            <span
+              className={`text-xs px-3 py-1.5 rounded-lg border font-medium ${
+                actionNotice.startsWith('✓')
+                  ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                  : 'text-rose-400 bg-rose-500/10 border-rose-500/30'
+              }`}
+            >
+              {actionNotice}
+            </span>
+          )}
+          <button
+            onClick={handleTriggerSyncAll}
+            disabled={syncingAll}
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white transition-all shadow-lg shadow-cyan-600/20 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
+            <span>{syncingAll ? 'Triggering Sync...' : 'Trigger Sync All Sources'}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Services Health */}
+      {health && (
+        <div className="glass-panel rounded-2xl p-5 border border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
+              <Server className="w-4 h-4 text-cyan-400" />
+              <span>Platform Infrastructure &amp; Health</span>
+            </h3>
+            <span
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                health.status === 'operational'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${health.status === 'operational' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
+              <span className="capitalize">{health.status}</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] uppercase font-semibold text-slate-500">PostgreSQL DB</span>
+              <div className="mt-1 flex items-center space-x-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-semibold text-white capitalize">{health.components.database.status}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] uppercase font-semibold text-slate-500">Redis Broker</span>
+              <div className="mt-1 flex items-center space-x-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-semibold text-white capitalize">{health.components.redis.status}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] uppercase font-semibold text-slate-500">Celery Worker</span>
+              <div className="mt-1 flex items-center space-x-1.5">
+                <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-semibold text-white capitalize">{health.components.celery.status}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] uppercase font-semibold text-slate-500">Beat Scheduler</span>
+              <div className="mt-1 flex items-center space-x-1.5">
+                <Clock className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-xs font-semibold text-white">{health.components.scheduler.schedule}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="glass-panel rounded-xl p-4 border border-slate-800">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Discovered Jobs</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Discovered</span>
             <div className="text-2xl font-extrabold text-white mt-1">{stats.total_jobs.toLocaleString()}</div>
           </div>
           <div className="glass-panel rounded-xl p-4 border border-slate-800">
@@ -93,8 +194,14 @@ export const AdminDashboard: React.FC = () => {
             <div className="text-2xl font-extrabold text-sky-400 mt-1">{stats.total_sources}</div>
           </div>
           <div className="glass-panel rounded-xl p-4 border border-slate-800">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Scraper Runs</span>
-            <div className="text-2xl font-extrabold text-purple-400 mt-1">{stats.total_scraper_runs}</div>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Successful Runs</span>
+            <div className="text-2xl font-extrabold text-emerald-400 mt-1">{stats.successful_runs ?? stats.total_scraper_runs}</div>
+          </div>
+          <div className="glass-panel rounded-xl p-4 border border-slate-800">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Failed Runs</span>
+            <div className={`text-2xl font-extrabold mt-1 ${(stats.failed_runs || 0) > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+              {stats.failed_runs ?? 0}
+            </div>
           </div>
         </div>
       )}
@@ -177,7 +284,7 @@ export const AdminDashboard: React.FC = () => {
                   <th className="p-3">Started At</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y border-slate-800/60">
                 {runs.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-900/50">
                     <td className="p-3 font-mono font-medium text-cyan-400">#{r.id}</td>

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Tuple
-from sqlalchemy import select, or_
+
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import Job

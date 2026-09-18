@@ -1,11 +1,11 @@
 import hashlib
 import re
 from datetime import datetime, timezone
-from urllib.parse import urlparse, urlunparse
 from typing import Optional, Tuple
+from urllib.parse import urlparse, urlunparse
 
 from app.models.job import EmploymentType, WorkMode
-from app.scrapers.base import RawJobData, NormalizedJobData
+from app.scrapers.base import NormalizedJobData, RawJobData
 
 
 class NormalizationService:
@@ -58,6 +58,64 @@ class NormalizationService:
         return EmploymentType.FULL_TIME
 
     @staticmethod
+    def normalize_location(location_str: Optional[str]) -> str:
+        """Standardize location: eliminate duplicates, clean commas, and normalize canonical format."""
+        if not location_str:
+            return "Remote"
+        cleaned = NormalizationService.clean_text(location_str)
+        if not cleaned or cleaned.lower() in ("anywhere", "worldwide", "remote", "telecommute", "global"):
+            return "Remote"
+
+        # Split by comma or slash and deduplicate components case-insensitively
+        parts = [re.sub(r"\s+", " ", p).strip() for p in re.split(r"[,/|]", cleaned) if p.strip()]
+        unique_parts = []
+        seen_lower = set()
+
+        for part in parts:
+            part_lower = part.lower()
+            # If part is "remote", don't mix into physical city/country if other parts exist
+            if part_lower in ("remote", "work from home", "anywhere"):
+                continue
+            if part_lower not in seen_lower:
+                seen_lower.add(part_lower)
+                unique_parts.append(part)
+
+        if not unique_parts:
+            return "Remote"
+
+        # Recombine into concise canonical display (max 3 parts: e.g. City, State, Country)
+        return ", ".join(unique_parts[:3])
+
+    @staticmethod
+    def normalize_salary_range(
+        min_val: Optional[float], max_val: Optional[float]
+    ) -> Tuple[Optional[float], Optional[float]]:
+        """Ensure non-negative salary and swap inverted ranges."""
+        s_min = float(min_val) if min_val is not None and min_val > 0 else None
+        s_max = float(max_val) if max_val is not None and max_val > 0 else None
+
+        if s_min is not None and s_max is not None and s_min > s_max:
+            s_min, s_max = s_max, s_min
+
+        # Sanity check: cap absurdly impossible single hourly-to-annual mismatch (> $10M)
+        if s_min is not None and s_min > 10_000_000:
+            s_min = None
+        if s_max is not None and s_max > 10_000_000:
+            s_max = None
+
+        return s_min, s_max
+
+    @staticmethod
+    def validate_raw_job(raw: RawJobData) -> None:
+        """Validate data quality requirements; raise ValueError if unusable record."""
+        if not raw.title or len(raw.title.strip()) < 2:
+            raise ValueError("Job title is missing or too short")
+        if not raw.company or len(raw.company.strip()) < 1:
+            raise ValueError("Company name is missing")
+        if not raw.url or not (raw.url.startswith("http://") or raw.url.startswith("https://")):
+            raise ValueError(f"Invalid job URL: {raw.url}")
+
+    @staticmethod
     def normalize_url(url: str) -> str:
         """Produce clean canonical URL by stripping tracking parameters (utm_*, ref, etc.)."""
         if not url:
@@ -82,15 +140,19 @@ class NormalizationService:
 
     @classmethod
     def normalize_raw_job(cls, source_id: int, raw: RawJobData) -> NormalizedJobData:
-        """Transform raw scraped data into clean NormalizedJobData."""
+        """Transform raw scraped data into clean NormalizedJobData with validation."""
+        cls.validate_raw_job(raw)
+
         title = cls.clean_text(raw.title)
         company = cls.normalize_company(raw.company)
-        location = cls.clean_text(raw.location) or "Remote"
-        description = cls.clean_text(raw.description)
+        location = cls.normalize_location(raw.location)
+        description = cls.clean_text(raw.description) or title
         canonical_url = cls.normalize_url(raw.url)
 
-        work_mode = cls.normalize_work_mode(raw.work_mode, f"{title} {description}")
+        work_mode = cls.normalize_work_mode(raw.work_mode, f"{title} {description} {raw.location}")
         employment_type = cls.normalize_employment_type(raw.employment_type, f"{title} {description}")
+
+        s_min, s_max = cls.normalize_salary_range(raw.salary_min, raw.salary_max)
 
         dedupe_hash = cls.compute_dedupe_hash(source_id, title, company, location)
 
@@ -105,10 +167,11 @@ class NormalizationService:
             canonical_url=canonical_url,
             employment_type=employment_type,
             work_mode=work_mode,
-            salary_min=raw.salary_min,
-            salary_max=raw.salary_max,
-            currency=raw.currency or "USD",
+            salary_min=s_min,
+            salary_max=s_max,
+            currency=(raw.currency or "USD").upper().strip(),
             posted_at=raw.posted_at or datetime.now(timezone.utc),
             dedupe_hash=dedupe_hash,
             raw_data=raw.raw_payload,
         )
+

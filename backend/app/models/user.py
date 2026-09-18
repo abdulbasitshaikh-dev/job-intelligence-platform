@@ -1,15 +1,14 @@
 from datetime import datetime, timezone
 from typing import List, Optional
+
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     Numeric,
     String,
-    Text,
-    JSON,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

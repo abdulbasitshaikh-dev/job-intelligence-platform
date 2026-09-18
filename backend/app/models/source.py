@@ -1,16 +1,19 @@
+import enum
 from datetime import datetime, timezone
 from typing import List, Optional
-import enum
+
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Integer,
     Numeric,
     String,
     Text,
-    JSON,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,7 +46,7 @@ class Source(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     rate_limit_delay: Mapped[float] = mapped_column(Numeric(5, 2), default=1.5, nullable=False)
-    
+
     last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_success_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_failure_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

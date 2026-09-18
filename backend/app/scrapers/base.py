@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from app.models.job import EmploymentType, WorkMode
@@ -70,15 +71,32 @@ class BaseScraper(ABC):
         pass
 
     async def run(self) -> List[NormalizedJobData]:
-        """Execute full fetch -> parse -> normalize pipeline safely."""
+        """Execute full fetch -> parse -> normalize pipeline safely with observable telemetry."""
+        from app.core.logging import logger
+
         raw_items = await self.fetch()
         normalized_jobs: List[NormalizedJobData] = []
-        for item in raw_items:
+        for idx, item in enumerate(raw_items):
+            ext_id = None
+            stage = "parse"
             try:
+                if isinstance(item, dict):
+                    ext_id = str(item.get("id") or item.get("slug") or item.get("job_id") or "")
                 parsed = self.parse(item)
+                ext_id = parsed.external_id or ext_id
+                stage = "normalize"
                 normalized = self.normalize(parsed)
                 normalized_jobs.append(normalized)
             except Exception as e:
-                # Log item parsing/normalization error without failing entire batch
+                logger.warning(
+                    "Scraper item processing skipped",
+                    source_id=self.source_id,
+                    scraper=self.__class__.__name__,
+                    item_index=idx,
+                    external_id=ext_id,
+                    stage=stage,
+                    error=str(e),
+                )
                 continue
         return normalized_jobs
+

@@ -1,6 +1,4 @@
-import pytest
 from app.models.job import EmploymentType, WorkMode
-from app.scrapers.base import RawJobData
 from app.services.normalization import NormalizationService
 
 

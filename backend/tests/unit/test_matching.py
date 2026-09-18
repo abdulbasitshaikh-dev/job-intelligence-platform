@@ -1,4 +1,4 @@
-from app.models.job import Job, EmploymentType, WorkMode
+from app.models.job import EmploymentType, Job, WorkMode
 from app.models.user import JobPreference
 from app.services.matching import MatchingService
 

@@ -1,8 +1,8 @@
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-import redis.asyncio as aioredis
 
 from app.config import settings
 from app.database import get_db

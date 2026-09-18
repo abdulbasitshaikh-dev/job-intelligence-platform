@@ -1,9 +1,10 @@
 from typing import Dict, Optional, Type
+
+from app.scrapers.api_scraper import APIScraper
 from app.scrapers.base import BaseScraper
 from app.scrapers.http_scraper import HTTPScraper
-from app.scrapers.api_scraper import APIScraper
-from app.scrapers.sources.remote_ok import RemoteOKScraper
 from app.scrapers.sources.arbeitnow import ArbeitnowScraper
+from app.scrapers.sources.remote_ok import RemoteOKScraper
 
 # Playwright is an optional dependency
 try:

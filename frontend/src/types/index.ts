@@ -25,6 +25,7 @@ export interface JobPreference {
 export interface Job {
   id: number;
   source_id: number;
+  source_name?: string;
   external_id: string;
   title: string;
   company: string;
@@ -58,6 +59,16 @@ export interface JobApplication {
   created_at: string;
   updated_at: string;
   job?: Job;
+}
+
+export interface NotificationConfig {
+  id: number;
+  user_id: number;
+  email_notifications: boolean;
+  webhook_url: string | null;
+  min_match_score: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Source {
@@ -99,10 +110,38 @@ export interface PaginatedResponse<T> {
   pages: number;
 }
 
+export interface PlatformStats {
+  active_jobs: number;
+  total_jobs: number;
+  configured_sources: number;
+  healthy_sources: number;
+  last_successful_sync: string | null;
+  jobs_added_recently: number;
+}
+
 export interface SystemStats {
   total_users: number;
   total_jobs: number;
   active_jobs: number;
   total_sources: number;
   total_scraper_runs: number;
+  successful_runs?: number;
+  failed_runs?: number;
+  last_successful_sync?: string | null;
 }
+
+export interface SystemHealth {
+  status: string;
+  components: {
+    database: { status: string };
+    redis: { status: string };
+    celery: { status: string; broker: string };
+    scheduler: { status: string; schedule: string };
+  };
+  last_run: {
+    id: number | null;
+    status: string;
+    timestamp: string | null;
+  } | null;
+}
+

@@ -1,7 +1,8 @@
 from typing import Any, Dict, List, Optional
+
 import httpx
 
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
 from app.services.normalization import NormalizationService
 
 
@@ -41,17 +42,17 @@ class RemoteOKScraper(BaseScraper):
     def parse(self, item: Any) -> RawJobData:
         if not isinstance(item, dict):
             item = {}
-            
+
         ext_id = str(item.get("id", item.get("slug", "unk")))
         title = item.get("position", item.get("title", "Software Engineer"))
         company = item.get("company", "Remote Company")
         location = item.get("location", "Remote")
         description = item.get("description", title)
         url = item.get("url", f"https://remoteok.com/remote-jobs/{ext_id}")
-        
+
         salary_min = self._safe_float(item.get("salary_min"))
         salary_max = self._safe_float(item.get("salary_max"))
-        
+
         tags = item.get("tags", [])
         if isinstance(tags, list) and len(tags) > 0:
             description += f"\nSkills: {', '.join(tags)}"

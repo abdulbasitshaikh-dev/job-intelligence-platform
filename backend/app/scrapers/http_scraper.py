@@ -1,11 +1,12 @@
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 import httpx
 from bs4 import BeautifulSoup
 
 from app.config import settings
 from app.core.logging import logger
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
 from app.services.normalization import NormalizationService
 
 
@@ -58,7 +59,7 @@ class HTTPScraper(BaseScraper):
         """Parse BeautifulSoup element using configured selectors."""
         ext_id_attr = self.config.get("external_id_attr", "data-id")
         external_id = item.get(ext_id_attr) or item.get("id") or "unk"
-        
+
         title_el = item.select_one(self.config.get("title_selector", ".title"))
         title = title_el.get_text(strip=True) if title_el else "Unknown Title"
 

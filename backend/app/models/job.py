@@ -1,10 +1,11 @@
+import enum
 from datetime import datetime, timezone
 from typing import List, Optional
-import enum
+
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
@@ -12,7 +13,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    JSON,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,18 +52,18 @@ class Job(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     url: Mapped[str] = mapped_column(String(1000), nullable=False)
     canonical_url: Mapped[str] = mapped_column(String(1000), nullable=False, index=True)
-    
+
     employment_type: Mapped[EmploymentType] = mapped_column(
         SQLEnum(EmploymentType), default=EmploymentType.FULL_TIME, nullable=False, index=True
     )
     work_mode: Mapped[WorkMode] = mapped_column(
         SQLEnum(WorkMode), default=WorkMode.REMOTE, nullable=False, index=True
     )
-    
+
     salary_min: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     salary_max: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="USD", nullable=False)
-    
+
     posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     first_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -69,7 +72,7 @@ class Job(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
-    
+
     dedupe_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     raw_data: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 

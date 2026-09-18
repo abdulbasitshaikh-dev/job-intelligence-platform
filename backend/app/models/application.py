@@ -1,7 +1,9 @@
+import enum
 from datetime import datetime, timezone
 from typing import Optional
-import enum
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, Text, UniqueConstraint
+
+from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base

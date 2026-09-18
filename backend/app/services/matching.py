@@ -1,4 +1,5 @@
 from typing import List
+
 from app.models.job import Job
 from app.models.user import JobPreference
 from app.schemas.job import MatchReason, MatchScoreResponse
@@ -17,14 +18,31 @@ class MatchingService:
                 job_id=job.id,
                 user_id=0,
                 total_score=0,
-                reasons=[MatchReason(category="Default", points=0, description="No preferences configured")],
+                reasons=[MatchReason(category="Default", points=0, description="Set preferences to see your match score.")],
             )
 
-        job_title_lower = job.title.lower()
-        job_desc_lower = job.description.lower()
-        job_loc_lower = job.location.lower()
+        has_any_pref = bool(
+            (preference.keywords and len(preference.keywords) > 0)
+            or (preference.locations and len(preference.locations) > 0)
+            or (preference.work_modes and len(preference.work_modes) > 0)
+            or (preference.employment_types and len(preference.employment_types) > 0)
+            or preference.min_salary
+            or preference.max_salary
+        )
 
-        # 1. Keywords (up to 45 pts)
+        if not has_any_pref:
+            return MatchScoreResponse(
+                job_id=job.id,
+                user_id=preference.user_id,
+                total_score=0,
+                reasons=[MatchReason(category="Preferences", points=0, description="Set preferences to see your match score.")],
+            )
+
+        job_title_lower = (job.title or "").lower()
+        job_desc_lower = (job.description or "").lower()
+        job_loc_lower = (job.location or "").lower()
+
+        # 1. Keywords (up to 35 pts)
         kw_title_score = 0
         kw_desc_score = 0
         matched_keywords = []
@@ -40,30 +58,28 @@ class MatchingService:
                 kw_desc_score += 10
                 matched_keywords.append(f"{kw} (in description)")
 
-        kw_total = min(45, kw_title_score + kw_desc_score)
+        kw_total = min(35, kw_title_score + kw_desc_score)
         if kw_total > 0:
             total_score += kw_total
             reasons.append(
                 MatchReason(
-                    category="Keywords",
+                    category="Skills",
                     points=kw_total,
-                    description=f"Matched keywords: {', '.join(matched_keywords)}",
+                    description=f"+{kw_total} {', '.join(matched_keywords)} match",
                 )
             )
 
         # 2. Location (up to 25 pts)
-        location_matched = False
         for loc in preference.locations or []:
             loc_clean = loc.lower().strip()
             if not loc_clean:
                 continue
             if loc_clean in job_loc_lower or ("remote" in loc_clean and job.work_mode.value.lower() == "remote"):
-                location_matched = True
                 reasons.append(
                     MatchReason(
                         category="Location",
                         points=25,
-                        description=f"Matched preferred location: {loc}",
+                        description=f"+25 Preferred location match: {loc}",
                     )
                 )
                 total_score += 25
@@ -78,7 +94,7 @@ class MatchingService:
                     MatchReason(
                         category="Work Mode",
                         points=20,
-                        description=f"Matched work mode preference: {job.work_mode.value}",
+                        description=f"+20 {job.work_mode.value} work mode matches",
                     )
                 )
 
@@ -89,11 +105,33 @@ class MatchingService:
                 total_score += 10
                 reasons.append(
                     MatchReason(
-                        category="Employment Type",
+                        category="Employment",
                         points=10,
-                        description=f"Matched employment type: {job.employment_type.value}",
+                        description=f"+10 {job.employment_type.value} employment matches",
                     )
                 )
+
+        # 5. Salary Compatibility (up to 10 pts)
+        if preference.min_salary is not None or preference.max_salary is not None:
+            user_min = float(preference.min_salary or 0)
+            user_max = float(preference.max_salary or 10_000_000)
+            job_min = float(job.salary_min) if job.salary_min is not None else None
+            job_max = float(job.salary_max) if job.salary_max is not None else None
+
+            if job_min is not None or job_max is not None:
+                effective_job_min = job_min if job_min is not None else (job_max or 0)
+                effective_job_max = job_max if job_max is not None else (job_min or 10_000_000)
+
+                # Overlap test: [effective_job_min, effective_job_max] overlaps [user_min, user_max]
+                if effective_job_max >= user_min and effective_job_min <= user_max:
+                    total_score += 10
+                    reasons.append(
+                        MatchReason(
+                            category="Salary",
+                            points=10,
+                            description="+10 Salary range compatible with your target compensation",
+                        )
+                    )
 
         final_score = min(100, total_score)
         return MatchScoreResponse(
@@ -102,3 +140,4 @@ class MatchingService:
             total_score=final_score,
             reasons=reasons,
         )
+

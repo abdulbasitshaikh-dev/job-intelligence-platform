@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
+
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 from app.config import settings
 from app.core.exceptions import CredentialsException
@@ -72,3 +73,49 @@ def decode_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
         raise CredentialsException(detail="Token has expired")
     except jwt.InvalidTokenError:
         raise CredentialsException(detail="Could not validate credentials")
+
+
+def is_safe_webhook_url(url: Optional[str]) -> bool:
+    """Validate webhook URL scheme and prevent SSRF to internal/private networks."""
+    if url is None:
+        return True
+    if not isinstance(url, str) or not url.strip():
+        return False
+
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        lower_host = hostname.lower()
+        if lower_host in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"):
+            return False
+        if lower_host.endswith((".local", ".internal", ".localhost", ".corp", ".lan", ".home")):
+            return False
+
+        try:
+            ip = ipaddress.ip_address(lower_host)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        except ValueError:
+            # Hostname is a domain; verify resolved IP addresses if resolvable
+            try:
+                addr_info = socket.getaddrinfo(hostname, None)
+                for item in addr_info:
+                    resolved_ip = ipaddress.ip_address(item[4][0])
+                    if resolved_ip.is_private or resolved_ip.is_loopback or resolved_ip.is_link_local or resolved_ip.is_reserved or resolved_ip.is_multicast:
+                        return False
+            except (socket.gaierror, socket.herror, socket.timeout):
+                # If DNS resolution is unavailable (e.g. offline testing or mock host), allow valid domain structure
+                if "." not in lower_host:
+                    return False
+        return True
+    except Exception:
+        return False
+

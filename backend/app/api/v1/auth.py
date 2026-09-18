@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +12,8 @@ from app.core.security import (
     verify_password,
 )
 from app.database import get_db
-from app.models.user import User, JobPreference
 from app.models.notification import NotificationConfig
+from app.models.user import JobPreference, User
 from app.schemas.common import MessageResponse
 from app.schemas.user import (
     RefreshTokenRequest,

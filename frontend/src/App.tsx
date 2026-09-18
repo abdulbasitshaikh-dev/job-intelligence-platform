@@ -4,17 +4,24 @@ import { JobCard } from './components/JobCard';
 import { JobFilters } from './components/JobFilters';
 import { MatchScoreModal } from './components/MatchScoreModal';
 import { AuthModal } from './components/AuthModal';
+import { HowItWorksModal } from './components/HowItWorksModal';
+import { SourcesModal } from './components/SourcesModal';
 import { ApplicationsBoard } from './components/ApplicationsBoard';
 import { PreferencesForm } from './components/PreferencesForm';
 import { AdminDashboard } from './components/AdminDashboard';
 import { ApiClient } from './lib/api';
-import { Job, JobApplication, JobPreference, PaginatedResponse, User } from './types';
-import { Sparkles, Briefcase, ChevronLeft, ChevronRight, Bookmark, RefreshCw, Radio, CheckCircle2, Globe, Database } from 'lucide-react';
+import { Job, JobApplication, JobPreference, PaginatedResponse, PlatformStats, User } from './types';
+import { Sparkles, Briefcase, ChevronLeft, ChevronRight, Bookmark, RefreshCw, Database, Globe } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('feed');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
+
+  // Platform Telemetry
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
 
   // Job feed state
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -36,13 +43,17 @@ export const App: React.FC = () => {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [preference, setPreference] = useState<JobPreference | null>(null);
 
-  // Fetch Current User on Mount
+  // Fetch Current User & Platform Stats on Mount
   useEffect(() => {
     if (ApiClient.isAuthenticated()) {
       ApiClient.fetch<User>('/auth/me')
         .then((user) => setCurrentUser(user))
         .catch(() => ApiClient.clearTokens());
     }
+
+    ApiClient.fetch<PlatformStats>('/stats')
+      .then((data) => setPlatformStats(data))
+      .catch((err) => console.warn('Could not load platform stats', err));
   }, []);
 
   // Fetch Jobs Feed
@@ -131,14 +142,15 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleLiveSync = async () => {
+  const handleAdminSync = async () => {
     setSyncing(true);
     setSyncMessage(null);
     try {
       const result: any = await ApiClient.fetch('/jobs/sync', { method: 'POST' });
-      setSyncMessage(`✓ Synced ${result.sources?.length ?? 0} sources — ${result.new_jobs} new jobs added (${result.total_active_jobs} total active)`);
+      setSyncMessage(`✓ Synced ${result.sources?.length ?? 0} sources — ${result.new_jobs} new jobs added`);
       setPage(1);
       fetchJobs();
+      ApiClient.fetch<PlatformStats>('/stats').then(setPlatformStats).catch(() => {});
     } catch (err: any) {
       setSyncMessage('✗ Sync failed: ' + (err.message || 'Unknown error'));
     } finally {
@@ -159,21 +171,27 @@ export const App: React.FC = () => {
           setActiveTab('feed');
         }}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenHowItWorks={() => setIsHowItWorksOpen(true)}
+        onOpenSources={() => setIsSourcesOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Banner Hero */}
         <div className="relative rounded-3xl overflow-hidden p-8 mb-8 bg-gradient-to-r from-cyan-950/60 via-slate-900 to-sky-950/60 border border-slate-800/80 shadow-2xl">
-          <div className="relative z-10 max-w-2xl">
+          <div className="relative z-10 max-w-3xl">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 mb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Live Data • RemoteOK + Arbeitnow • {totalJobs}+ Active Jobs</span>
+              <span>
+                {platformStats
+                  ? `${platformStats.active_jobs} Active Jobs • ${platformStats.configured_sources} Configured Sources • RemoteOK & Arbeitnow`
+                  : `${totalJobs || 'Hundreds of'} Active Opportunities • Live Ingestion`}
+              </span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-['Outfit']">
-              Discover &amp; Match Real-Time Jobs
+              Find Jobs That Actually Match You
             </h1>
             <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-              Real-time public job discovery from live sources, canonical deduplication, and a deterministic match score engine tailored to your tech stack and preferences.
+              Discover opportunities collected from public job sources, then personalize your results using your skills, location, work preferences and salary expectations.
             </p>
           </div>
         </div>
@@ -201,7 +219,7 @@ export const App: React.FC = () => {
             />
 
             {/* Live Status Bar */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3 text-sm text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <Database className="w-3.5 h-3.5 text-cyan-500" />
@@ -210,23 +228,40 @@ export const App: React.FC = () => {
                 <span className="text-slate-700">|</span>
                 <span className="flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-emerald-400 font-medium text-xs">LIVE • RemoteOK + Arbeitnow</span>
+                  <span className="text-emerald-400 font-medium text-xs">
+                    {platformStats?.healthy_sources ?? 2} Healthy Sources
+                  </span>
                 </span>
               </div>
+
               <div className="flex items-center gap-2">
                 {syncMessage && (
-                  <span className={`text-xs px-2 py-1 rounded-lg ${syncMessage.startsWith('✓') ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>
+                  <span className={`text-xs px-2.5 py-1 rounded-lg ${syncMessage.startsWith('✓') ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>
                     {syncMessage}
                   </span>
                 )}
-                <button
-                  onClick={handleLiveSync}
-                  disabled={syncing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 text-xs font-semibold transition-all disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Syncing...' : 'Sync Live Jobs'}
-                </button>
+                {currentUser?.is_superuser ? (
+                  <button
+                    onClick={handleAdminSync}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 text-xs font-semibold transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                    {syncing ? 'Syncing...' : 'Sync Live Sources'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      fetchJobs();
+                      ApiClient.fetch<PlatformStats>('/stats').then(setPlatformStats).catch(() => {});
+                    }}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700 text-xs font-semibold transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh Listings</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -250,9 +285,11 @@ export const App: React.FC = () => {
                   <JobCard
                     key={job.id}
                     job={job}
+                    currentUser={currentUser}
                     onSaveToggle={handleSaveToggle}
                     onApplicationChange={handleApplicationChange}
                     onShowMatchDetails={(j) => setSelectedJobMatch(j)}
+                    onRequireAuth={() => setIsAuthOpen(true)}
                   />
                 ))}
               </div>
@@ -307,9 +344,11 @@ export const App: React.FC = () => {
                   <JobCard
                     key={job.id}
                     job={job}
+                    currentUser={currentUser}
                     onSaveToggle={handleSaveToggle}
                     onApplicationChange={handleApplicationChange}
                     onShowMatchDetails={(j) => setSelectedJobMatch(j)}
+                    onRequireAuth={() => setIsAuthOpen(true)}
                   />
                 ))}
               </div>
@@ -333,9 +372,11 @@ export const App: React.FC = () => {
 
       <MatchScoreModal job={selectedJobMatch} onClose={() => setSelectedJobMatch(null)} />
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onAuthSuccess={(user) => setCurrentUser(user)} />
+      <HowItWorksModal isOpen={isHowItWorksOpen} onClose={() => setIsHowItWorksOpen(false)} />
+      <SourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
 
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 mt-12">
-        <p>Job Intelligence Platform &copy; 2026. Built with FastAPI, SQLAlchemy 2.x, Celery, Playwright & React.</p>
+        <p>Job Intelligence Platform &copy; 2026. Built with FastAPI, SQLAlchemy 2.x, Celery, Playwright &amp; React.</p>
       </footer>
     </div>
   );

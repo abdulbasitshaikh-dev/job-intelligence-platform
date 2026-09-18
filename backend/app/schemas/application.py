@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
+
 from app.models.application import ApplicationStatus
 from app.schemas.job import JobResponse
 

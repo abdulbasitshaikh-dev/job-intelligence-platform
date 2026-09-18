@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NotificationConfigUpdate(BaseModel):

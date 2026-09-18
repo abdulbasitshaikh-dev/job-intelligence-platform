@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sliders, Plus, X, Save, Check } from 'lucide-react';
-import { JobPreference } from '../types';
+import { Sliders, Plus, X, Save, Check, Bell, Globe } from 'lucide-react';
+import { JobPreference, NotificationConfig } from '../types';
 import { ApiClient } from '../lib/api';
 
 interface PreferencesFormProps {
@@ -17,6 +17,12 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
   const [employmentTypes, setEmploymentTypes] = useState<string[]>(preference?.employment_types || ['Full-time']);
   const [minSalary, setMinSalary] = useState<string>(preference?.min_salary ? String(preference.min_salary) : '');
   const [maxSalary, setMaxSalary] = useState<string>(preference?.max_salary ? String(preference.max_salary) : '');
+
+  // Notification Config state
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [minMatchScore, setMinMatchScore] = useState(60);
+  const [webhookUrl, setWebhookUrl] = useState('');
+
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -29,6 +35,15 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
       setMinSalary(preference.min_salary ? String(preference.min_salary) : '');
       setMaxSalary(preference.max_salary ? String(preference.max_salary) : '');
     }
+
+    // Fetch persisted notification settings
+    ApiClient.fetch<NotificationConfig>('/preferences/notifications')
+      .then((cfg) => {
+        setEmailNotifications(cfg.email_notifications);
+        setMinMatchScore(cfg.min_match_score || 60);
+        setWebhookUrl(cfg.webhook_url || '');
+      })
+      .catch(() => {});
   }, [preference]);
 
   const addKeyword = () => {
@@ -75,20 +90,31 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
     setSavedSuccess(false);
 
     try {
-      await ApiClient.fetch('/preferences', {
-        method: 'PUT',
-        body: JSON.stringify({
-          keywords,
-          locations,
-          work_modes: workModes,
-          employment_types: employmentTypes,
-          min_salary: minSalary ? parseFloat(minSalary) : null,
-          max_salary: maxSalary ? parseFloat(maxSalary) : null,
+      await Promise.all([
+        ApiClient.fetch('/preferences', {
+          method: 'PUT',
+          body: JSON.stringify({
+            keywords,
+            locations,
+            work_modes: workModes,
+            employment_types: employmentTypes,
+            min_salary: minSalary ? parseFloat(minSalary) : null,
+            max_salary: maxSalary ? parseFloat(maxSalary) : null,
+          }),
         }),
-      });
+        ApiClient.fetch('/preferences/notifications', {
+          method: 'PUT',
+          body: JSON.stringify({
+            email_notifications: emailNotifications,
+            min_match_score: minMatchScore,
+            webhook_url: webhookUrl.trim() || null,
+          }),
+        }),
+      ]);
+
       setSavedSuccess(true);
       onRefresh();
-      setTimeout(() => setSavedSuccess(false), 3000);
+      setTimeout(() => setSavedSuccess(false), 3500);
     } catch (err: any) {
       alert(err.message || 'Failed to save preferences');
     } finally {
@@ -100,13 +126,18 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white font-['Outfit']">Job Preference Engine</h2>
-          <p className="text-xs text-slate-400 mt-1">Configure your targeting parameters for real-time match scoring</p>
+          <h2 className="text-2xl font-bold text-white font-['Outfit'] flex items-center space-x-2">
+            <Sliders className="w-6 h-6 text-cyan-400" />
+            <span>Job Preference &amp; Match Engine</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Configure your targeting parameters and automated match notification thresholds
+          </p>
         </div>
         {savedSuccess && (
-          <span className="flex items-center space-x-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/30">
+          <span className="flex items-center space-x-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3.5 py-1.5 rounded-lg border border-emerald-500/30">
             <Check className="w-4 h-4" />
-            <span>Preferences Saved!</span>
+            <span>Preferences &amp; Notifications Saved!</span>
           </span>
         )}
       </div>
@@ -115,7 +146,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
         {/* Keywords */}
         <div>
           <label className="block text-sm font-semibold text-slate-200 mb-2">
-            Target Keywords & Tech Stack
+            Target Keywords &amp; Tech Stack
           </label>
           <div className="flex items-center space-x-2 mb-3">
             <input
@@ -249,7 +280,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
 
         {/* Salary Range */}
         <div className="pt-4 border-t border-slate-800/80">
-          <label className="block text-sm font-semibold text-slate-200 mb-3">Expected Salary Range (USD)</label>
+          <label className="block text-sm font-semibold text-slate-200 mb-3">Expected Target Salary Range (USD)</label>
           <div className="grid grid-cols-2 gap-4">
             <input
               type="number"
@@ -268,6 +299,66 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
           </div>
         </div>
 
+        {/* Notification Settings Section */}
+        <div className="pt-4 border-t border-slate-800/80 space-y-4">
+          <div className="flex items-center space-x-2">
+            <Bell className="w-5 h-5 text-cyan-400" />
+            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
+              Notification &amp; Automation Channels
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-white block">Email Match Alerts</span>
+                <span className="text-[11px] text-slate-400">Receive periodic digests of matching opportunities</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={emailNotifications}
+                onChange={(e) => setEmailNotifications(e.target.checked)}
+                className="w-5 h-5 accent-cyan-500 rounded cursor-pointer"
+              />
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white">Minimum Match Threshold</span>
+                <span className="text-xs font-bold text-cyan-400">{minMatchScore}%</span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={95}
+                step={5}
+                value={minMatchScore}
+                onChange={(e) => setMinMatchScore(parseInt(e.target.value))}
+                className="w-full accent-cyan-500 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+              External Webhook URL (n8n / Slack / Automation Integration)
+            </label>
+            <div className="relative">
+              <Globe className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+              <input
+                type="url"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+                placeholder="https://n8n.yourdomain.com/webhook/job-events"
+                className="w-full bg-slate-900 text-xs text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Structured JSON payloads will be dispatched when newly ingested jobs meet your minimum match score.
+            </p>
+          </div>
+        </div>
+
         <div className="pt-4 flex justify-end">
           <button
             type="submit"
@@ -275,10 +366,11 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
             className="flex items-center space-x-2 px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-cyan-600 to-sky-500 hover:from-cyan-500 hover:to-sky-400 text-white shadow-lg shadow-cyan-500/25 transition-all text-sm"
           >
             <Save className="w-4 h-4" />
-            <span>{loading ? 'Saving...' : 'Save Preferences'}</span>
+            <span>{loading ? 'Saving Settings...' : 'Save Preferences & Notifications'}</span>
           </button>
         </div>
       </form>
     </div>
   );
 };
+

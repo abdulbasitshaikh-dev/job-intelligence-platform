@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.job import EmploymentType, WorkMode
 
 
@@ -9,6 +11,7 @@ class JobResponse(BaseModel):
 
     id: int
     source_id: int
+    source_name: Optional[str] = None
     external_id: str
     title: str
     company: str
@@ -26,7 +29,7 @@ class JobResponse(BaseModel):
     last_seen_at: datetime
     is_active: bool
     dedupe_hash: str
-    
+
     # Optional dynamic match score field if calculated for context
     match_score: Optional[int] = None
     match_reasons: Optional[List[str]] = None

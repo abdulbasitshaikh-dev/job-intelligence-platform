@@ -1,13 +1,14 @@
 import asyncio
 import time
 from datetime import datetime, timezone
+
 from sqlalchemy import select
+
 from app.celery_app import celery_app
 from app.core.logging import logger
 from app.database import SyncSessionLocal
-from app.models.source import Source, ScraperRun, ScraperRunStatus
+from app.models.source import ScraperRun, ScraperRunStatus, Source
 from app.scrapers.sources.scraper_registry import get_scraper_class
-from app.services.deduplication import DeduplicationService
 
 
 async def _async_scrape_source(source_id: int) -> dict:
@@ -42,7 +43,7 @@ async def _async_scrape_source(source_id: int) -> dict:
 
             # Execute scraper fetch/parse/normalize pipeline
             normalized_jobs = await scraper.run()
-            
+
             jobs_found = len(normalized_jobs)
             jobs_created = 0
             duplicates_found = 0
@@ -86,7 +87,7 @@ async def _async_scrape_source(source_id: int) -> dict:
                     jobs_created += 1
 
             duration = round(time.time() - start_time, 2)
-            
+
             # Update ScraperRun & Source metrics
             run.status = ScraperRunStatus.SUCCESS
             run.completed_at = datetime.now(timezone.utc)
@@ -118,7 +119,7 @@ async def _async_scrape_source(source_id: int) -> dict:
         except Exception as e:
             duration = round(time.time() - start_time, 2)
             error_msg = str(e)
-            
+
             run.status = ScraperRunStatus.FAILED
             run.completed_at = datetime.now(timezone.utc)
             run.error_message = error_msg

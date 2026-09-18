@@ -1,10 +1,10 @@
 from app.database import Base
-from app.models.user import User, JobPreference
-from app.models.source import Source, SourceType, ScraperRun, ScraperRunStatus
-from app.models.job import Job, EmploymentType, WorkMode
+from app.models.application import ApplicationStatus, JobApplication
+from app.models.job import EmploymentType, Job, WorkMode
+from app.models.notification import NotificationConfig, NotificationLog
 from app.models.saved_job import SavedJob
-from app.models.application import JobApplication, ApplicationStatus
-from app.models.notification import NotificationConfig
+from app.models.source import ScraperRun, ScraperRunStatus, Source, SourceType
+from app.models.user import JobPreference, User
 
 __all__ = [
     "Base",
@@ -21,4 +21,5 @@ __all__ = [
     "JobApplication",
     "ApplicationStatus",
     "NotificationConfig",
+    "NotificationLog",
 ]

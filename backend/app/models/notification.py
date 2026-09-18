@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -17,7 +18,7 @@ class NotificationConfig(Base):
     webhook_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     webhook_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     min_match_score: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -30,3 +31,25 @@ class NotificationConfig(Base):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="notification_config")
+
+
+class NotificationLog(Base):
+    __tablename__ = "notification_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    match_score: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", "channel", name="uq_user_job_channel_notification"),
+    )
+

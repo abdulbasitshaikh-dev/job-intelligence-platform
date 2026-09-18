@@ -1,11 +1,12 @@
 import asyncio
 from typing import Any, Dict, List
+
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
 from app.config import settings
 from app.core.logging import logger
-from app.scrapers.base import BaseScraper, RawJobData, NormalizedJobData
+from app.scrapers.base import BaseScraper, NormalizedJobData, RawJobData
 from app.services.normalization import NormalizationService
 
 
@@ -22,7 +23,7 @@ class PlaywrightScraper(BaseScraper):
         """Launch Playwright browser context, navigate to page, wait for rendering, and retrieve DOM."""
         await asyncio.sleep(self.rate_limit_delay)
         rendered_html = ""
-        
+
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=self.headless)
             context = await browser.new_context(
@@ -30,7 +31,7 @@ class PlaywrightScraper(BaseScraper):
                 viewport={"width": 1280, "height": 800},
             )
             page = await context.new_page()
-            
+
             try:
                 await page.goto(self.base_url, timeout=self.timeout, wait_until="domcontentloaded")
                 await page.wait_for_selector(self.wait_selector, timeout=5000)

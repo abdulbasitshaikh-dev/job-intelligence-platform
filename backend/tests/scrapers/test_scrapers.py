@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, patch
-from app.scrapers.sources.remote_ok import RemoteOKScraper
-from app.scrapers.sources.arbeitnow import ArbeitnowScraper
 
+import pytest
+
+from app.scrapers.sources.arbeitnow import ArbeitnowScraper
+from app.scrapers.sources.remote_ok import RemoteOKScraper
 
 MOCK_REMOTEOK_ITEMS = [
     {

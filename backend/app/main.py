@@ -1,27 +1,25 @@
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.health import router as health_router
 from app.api.v1.router import api_v1_router
 from app.config import settings
 from app.core.exceptions import BaseAppException
 from app.core.logging import logger, setup_logging
-from app.database import AsyncSessionLocal, async_engine, Base
-from app.models.source import Source, SourceType
-
-
-from datetime import datetime, timezone
-from sqlalchemy import func
 from app.core.security import get_password_hash
+from app.database import AsyncSessionLocal, Base, async_engine
 from app.models.job import Job
 from app.models.notification import NotificationConfig
+from app.models.source import Source, SourceType
 from app.models.user import JobPreference, User
-from app.scrapers.sources.remote_ok import RemoteOKScraper
 from app.scrapers.sources.arbeitnow import ArbeitnowScraper
+from app.scrapers.sources.remote_ok import RemoteOKScraper
 
 
 async def seed_default_data():
@@ -186,7 +184,7 @@ async def lifespan(app: FastAPI):
     # Startup
     setup_logging()
     logger.info("Starting Job Intelligence Platform API", env=settings.ENVIRONMENT)
-    
+
     # Auto-create tables for local execution (if Alembic migrations haven't run)
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
