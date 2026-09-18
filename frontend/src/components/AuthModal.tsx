@@ -71,34 +71,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           </p>
         </div>
 
-        {/* Quick Credentials Autofill */}
-        {!isRegister && (
-          <div className="mb-4 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs flex items-center justify-between">
-            <span className="text-slate-400 font-medium">Quick Credentials Autofill:</span>
-            <div className="flex items-center space-x-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('admin@jobintel.io');
-                  setPassword('Admin12345!');
-                }}
-                className="px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30 font-semibold text-[11px] transition-colors"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('candidate@jobintel.io');
-                  setPassword('Candidate123!');
-                }}
-                className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 border border-sky-500/30 font-semibold text-[11px] transition-colors"
-              >
-                Candidate
-              </button>
-            </div>
-          </div>
-        )}
+
+
 
         {error && (
           <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400">

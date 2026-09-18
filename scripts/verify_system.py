@@ -9,7 +9,11 @@ Tests all core subsystems:
 6. Bookmark saving & lifecycle application tracking
 7. Admin metrics & scraper telemetry
 8. Webhook ingestion
+
+Usage:
+  VERIFY_ADMIN_PASSWORD=<your-admin-password> python scripts/verify_system.py
 """
+import os
 import sys
 import time
 import httpx
@@ -52,7 +56,9 @@ def main():
 
     # 3. User Authentication Flow
     test_email = f"tester_{int(time.time())}@example.com"
-    test_password = "SecurePassword123!"
+    # Use a randomised ephemeral password for the disposable test user
+    import secrets
+    test_password = secrets.token_urlsafe(20)
     access_token = ""
     
     # 3a. Registration
@@ -216,35 +222,41 @@ def main():
         log_step("Webhook Ingestion Endpoint (/webhooks/job-events)", False, str(e))
 
     # 9. Admin Superuser Authentication & Telemetry
-    try:
-        admin_login = client.post(
-            "/api/v1/auth/login",
-            json={"email": "admin@jobintel.io", "password": "Admin12345!"},
-        )
-        if admin_login.status_code == 200:
-            admin_token = admin_login.json()["access_token"]
-            admin_headers = {"Authorization": f"Bearer {admin_token}"}
-
-            stats_resp = client.get("/api/v1/admin/stats", headers=admin_headers)
-            stats = stats_resp.json()
-            passed = stats_resp.status_code == 200 and "total_jobs" in stats
-            log_step(
-                "Admin Superuser Portal & Stats (/admin/stats)",
-                passed,
-                f"jobs={stats.get('total_jobs')}, sources={stats.get('total_sources')}, users={stats.get('total_users')}",
+    # Admin password is read from VERIFY_ADMIN_PASSWORD environment variable
+    admin_password = os.environ.get("VERIFY_ADMIN_PASSWORD", "")
+    if not admin_password:
+        log_step("Admin Superuser Portal & Stats (/admin/stats)", False,
+                 "VERIFY_ADMIN_PASSWORD env var not set — skipping admin tests")
+    else:
+        try:
+            admin_login = client.post(
+                "/api/v1/auth/login",
+                json={"email": "admin@jobintel.io", "password": admin_password},
             )
+            if admin_login.status_code == 200:
+                admin_token = admin_login.json()["access_token"]
+                admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
-            src_resp = client.get("/api/v1/admin/sources", headers=admin_headers)
-            passed = src_resp.status_code == 200 and len(src_resp.json()) >= 1
-            log_step(
-                "Admin Job Source Management (/admin/sources)",
-                passed,
-                f"{len(src_resp.json())} sources configured",
-            )
-        else:
-            log_step("Admin Superuser Login", False, f"status={admin_login.status_code}")
-    except Exception as e:
-        log_step("Admin Superuser Portal & Stats", False, str(e))
+                stats_resp = client.get("/api/v1/admin/stats", headers=admin_headers)
+                stats = stats_resp.json()
+                passed = stats_resp.status_code == 200 and "total_jobs" in stats
+                log_step(
+                    "Admin Superuser Portal & Stats (/admin/stats)",
+                    passed,
+                    f"jobs={stats.get('total_jobs')}, sources={stats.get('total_sources')}, users={stats.get('total_users')}",
+                )
+
+                src_resp = client.get("/api/v1/admin/sources", headers=admin_headers)
+                passed = src_resp.status_code == 200 and len(src_resp.json()) >= 1
+                log_step(
+                    "Admin Job Source Management (/admin/sources)",
+                    passed,
+                    f"{len(src_resp.json())} sources configured",
+                )
+            else:
+                log_step("Admin Superuser Login", False, f"status={admin_login.status_code}")
+        except Exception as e:
+            log_step("Admin Superuser Portal & Stats", False, str(e))
 
     print("=" * 60)
     print("  Verification Complete!")

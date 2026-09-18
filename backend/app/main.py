@@ -1,3 +1,4 @@
+import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -22,10 +23,17 @@ from app.scrapers.sources.arbeitnow import ArbeitnowScraper
 from app.scrapers.sources.remote_ok import RemoteOKScraper
 
 
+
+
 async def seed_default_data():
-    """Seed initial real sources, administrator account, and ingest live job opportunities."""
+    """Seed initial job sources and, in development only, demo accounts.
+
+    Admin/demo account seeding is gated to ENVIRONMENT=development.
+    Passwords are never hardcoded — they must be supplied via:
+      SEED_ADMIN_PASSWORD and SEED_DEMO_PASSWORD environment variables.
+    """
     async with AsyncSessionLocal() as session:
-        # 1. Seed Real Job Sources
+        # 1. Seed Real Job Sources (safe to run in all environments)
         src_stmt = select(Source)
         existing_sources = (await session.execute(src_stmt)).scalars().all()
         source_types = {s.scraper_type: s for s in existing_sources}
@@ -61,72 +69,93 @@ async def seed_default_data():
         await session.commit()
         logger.info("Production job sources registered successfully")
 
-        # 2. Seed Default Admin User
-        admin_stmt = select(User).where(User.email == "admin@jobintel.io")
-        existing_admin = (await session.execute(admin_stmt)).scalars().first()
-        if not existing_admin:
-            admin_user = User(
-                email="admin@jobintel.io",
-                hashed_password=get_password_hash("Admin12345!"),
-                full_name="System Administrator",
-                is_superuser=True,
-                is_active=True,
+        # 2. Demo account seeding — DEVELOPMENT ONLY
+        if settings.ENVIRONMENT.lower() != "development":
+            logger.info(
+                "Skipping demo account seeding",
+                environment=settings.ENVIRONMENT,
+                reason="demo seeding is disabled outside development",
             )
-            session.add(admin_user)
-            await session.flush()
+        else:
+            admin_password = os.environ.get("SEED_ADMIN_PASSWORD") or settings.SEED_ADMIN_PASSWORD
+            demo_password = os.environ.get("SEED_DEMO_PASSWORD") or settings.SEED_DEMO_PASSWORD
 
-            admin_pref = JobPreference(
-                user_id=admin_user.id,
-                keywords=["Python", "FastAPI", "Backend", "Full Stack", "DevOps"],
-                locations=["Remote", "Pakistan"],
-                employment_types=["Full-time", "Contract"],
-                work_modes=["Remote", "Hybrid"],
-                min_salary=60000,
-                max_salary=120000,
-            )
-            admin_notif = NotificationConfig(
-                user_id=admin_user.id,
-                email_notifications=True,
-                min_match_score=60,
-                webhook_url="http://localhost:8000/api/v1/webhooks/job-events",
-            )
-            session.add_all([admin_pref, admin_notif])
-            await session.commit()
-            logger.info("Default administrator account seeded (admin@jobintel.io)")
+            if not admin_password:
+                logger.info(
+                    "SEED_ADMIN_PASSWORD not set; skipping development admin account seeding. "
+                    "Set SEED_ADMIN_PASSWORD in .env if local admin account is desired."
+                )
+            else:
+                admin_stmt = select(User).where(User.email == "admin@jobintel.io")
+                existing_admin = (await session.execute(admin_stmt)).scalars().first()
+                if not existing_admin:
+                    admin_user = User(
+                        email="admin@jobintel.io",
+                        hashed_password=get_password_hash(admin_password),
+                        full_name="System Administrator",
+                        is_superuser=True,
+                        is_active=True,
+                    )
+                    session.add(admin_user)
+                    await session.flush()
 
-        # 3. Seed Candidate Demo User
-        demo_stmt = select(User).where(User.email == "candidate@jobintel.io")
-        existing_demo = (await session.execute(demo_stmt)).scalars().first()
-        if not existing_demo:
-            demo_user = User(
-                email="candidate@jobintel.io",
-                hashed_password=get_password_hash("Candidate123!"),
-                full_name="Alex Engineer",
-                is_superuser=False,
-                is_active=True,
-            )
-            session.add(demo_user)
-            await session.flush()
+                    admin_pref = JobPreference(
+                        user_id=admin_user.id,
+                        keywords=["Python", "FastAPI", "Backend", "Full Stack", "DevOps"],
+                        locations=["Remote", "Pakistan"],
+                        employment_types=["Full-time", "Contract"],
+                        work_modes=["Remote", "Hybrid"],
+                        min_salary=60000,
+                        max_salary=120000,
+                    )
+                    admin_notif = NotificationConfig(
+                        user_id=admin_user.id,
+                        email_notifications=True,
+                        min_match_score=60,
+                        # No default webhook URL — must be configured explicitly
+                    )
+                    session.add_all([admin_pref, admin_notif])
+                    await session.commit()
+                    logger.info("Development admin account seeded", email="admin@jobintel.io")
 
-            cand_pref = JobPreference(
-                user_id=demo_user.id,
-                keywords=["Python", "FastAPI", "React", "Next.js"],
-                locations=["Remote", "Karachi"],
-                employment_types=["Full-time"],
-                work_modes=["Remote", "Hybrid"],
-                min_salary=50000,
-                max_salary=100000,
-            )
-            cand_notif = NotificationConfig(
-                user_id=demo_user.id,
-                email_notifications=True,
-                min_match_score=50,
-            )
-            session.add_all([cand_pref, cand_notif])
-            await session.commit()
-            logger.info("Demo candidate account seeded (candidate@jobintel.io)")
+            if not demo_password:
+                logger.info(
+                    "SEED_DEMO_PASSWORD not set; skipping development candidate account seeding. "
+                    "Set SEED_DEMO_PASSWORD in .env if local candidate account is desired."
+                )
+            else:
+                demo_stmt = select(User).where(User.email == "candidate@jobintel.io")
+                existing_demo = (await session.execute(demo_stmt)).scalars().first()
+                if not existing_demo:
+                    demo_user = User(
+                        email="candidate@jobintel.io",
+                        hashed_password=get_password_hash(demo_password),
+                        full_name="Alex Engineer",
+                        is_superuser=False,
+                        is_active=True,
+                    )
+                    session.add(demo_user)
+                    await session.flush()
 
-        # 4. Ingest Initial Real Job Opportunities if table is empty or sparse
+                    cand_pref = JobPreference(
+                        user_id=demo_user.id,
+                        keywords=["Python", "FastAPI", "React", "Next.js"],
+                        locations=["Remote", "Karachi"],
+                        employment_types=["Full-time"],
+                        work_modes=["Remote", "Hybrid"],
+                        min_salary=50000,
+                        max_salary=100000,
+                    )
+                    cand_notif = NotificationConfig(
+                        user_id=demo_user.id,
+                        email_notifications=True,
+                        min_match_score=50,
+                    )
+                    session.add_all([cand_pref, cand_notif])
+                    await session.commit()
+                    logger.info("Development demo account seeded", email="candidate@jobintel.io")
+
+        # 3. Ingest Initial Real Job Opportunities if table is empty or sparse
         jobs_count = (await session.execute(select(func.count(Job.id)))).scalar() or 0
         if jobs_count < 50:
             logger.info("Ingesting real-time live opportunities from production sources...")

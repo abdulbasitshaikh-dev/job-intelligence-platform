@@ -31,6 +31,12 @@ jobs:
           ruff check .
 
       - name: Run Pytest Suite
+        env:
+          SECRET_KEY: ci-test-secret-key
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          SYNC_DATABASE_URL: sqlite:///:memory:
+          POSTGRES_PASSWORD: unused-in-tests
+          ENVIRONMENT: development
         run: |
           cd backend
           pytest tests/

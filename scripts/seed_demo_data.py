@@ -1,8 +1,15 @@
 """
-Seed Demo Data Script for Job Intelligence Platform
+Seed Demo Data Script for Job Intelligence Platform (DEVELOPMENT ONLY)
+
 Populates sample users, job opportunities, applications, and preference records.
+Credentials are sourced exclusively from environment variables:
+  - SEED_ADMIN_PASSWORD  (required)
+  - SEED_DEMO_PASSWORD   (required)
+
+Never run this script in production.
 """
 import asyncio
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +17,15 @@ from pathlib import Path
 # Add backend directory to sys.path
 backend_path = Path(__file__).resolve().parent.parent / "backend"
 sys.path.insert(0, str(backend_path))
+
+
+def _require_env(key: str) -> str:
+    val = os.environ.get(key)
+    if not val:
+        print(f"[ERROR] Required environment variable '{key}' is not set.")
+        print(f"  Set it before running: {key}=<your-strong-password> python scripts/seed_demo_data.py")
+        sys.exit(1)
+    return val
 
 from sqlalchemy import select
 from app.database import AsyncSessionLocal, async_engine, Base
@@ -111,12 +127,13 @@ async def seed():
             await session.refresh(source)
             print("Created default Demo Source.")
 
-        # 2. Seed Admin User
+        # 2. Seed Admin User — password from environment variable
+        admin_password = _require_env("SEED_ADMIN_PASSWORD")
         admin = (await session.execute(select(User).where(User.email == "admin@jobintel.io"))).scalars().first()
         if not admin:
             admin = User(
                 email="admin@jobintel.io",
-                hashed_password=get_password_hash("Admin12345!"),
+                hashed_password=get_password_hash(admin_password),
                 full_name="System Administrator",
                 is_superuser=True,
                 is_active=True,
@@ -137,18 +154,19 @@ async def seed():
                 user_id=admin.id,
                 email_notifications=True,
                 min_match_score=60,
-                webhook_url="http://localhost:8000/api/v1/webhooks/job-events",
+                # No default webhook URL — configure explicitly via SEED_ADMIN_WEBHOOK_URL if needed
             )
             session.add(notif)
             await session.commit()
-            print("Seeded Admin User: admin@jobintel.io / Admin12345!")
+            print("Seeded Admin User: admin@jobintel.io (password set from SEED_ADMIN_PASSWORD)")
 
-        # 3. Seed Candidate Demo User
+        # 3. Seed Candidate Demo User — password from environment variable
+        demo_password = _require_env("SEED_DEMO_PASSWORD")
         cand = (await session.execute(select(User).where(User.email == "candidate@jobintel.io"))).scalars().first()
         if not cand:
             cand = User(
                 email="candidate@jobintel.io",
-                hashed_password=get_password_hash("Candidate123!"),
+                hashed_password=get_password_hash(demo_password),
                 full_name="Alex Engineer",
                 is_superuser=False,
                 is_active=True,
@@ -166,7 +184,7 @@ async def seed():
             )
             session.add(cand_pref)
             await session.commit()
-            print("Seeded Candidate User: candidate@jobintel.io / Candidate123!")
+            print("Seeded Candidate User: candidate@jobintel.io (password set from SEED_DEMO_PASSWORD)")
 
         # 4. Seed Extra Jobs
         now = datetime.now(timezone.utc)
@@ -240,9 +258,9 @@ async def seed():
             await session.commit()
             print("Seeded sample saved jobs and tracked applications.")
 
-    print("\n[SUCCESS] Demo data seeded successfully! You can now log in with:")
-    print("  Administrator: admin@jobintel.io / Admin12345!")
-    print("  Candidate:     candidate@jobintel.io / Candidate123!")
+    print("\n[SUCCESS] Demo data seeded successfully!")
+    print("  Administrator: admin@jobintel.io (use SEED_ADMIN_PASSWORD value to login)")
+    print("  Candidate:     candidate@jobintel.io (use SEED_DEMO_PASSWORD value to login)")
 
 
 if __name__ == "__main__":
