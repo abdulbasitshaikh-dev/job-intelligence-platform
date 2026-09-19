@@ -13,13 +13,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
   const [newKeyword, setNewKeyword] = useState('');
   const [locations, setLocations] = useState<string[]>(preference?.locations || []);
   const [newLocation, setNewLocation] = useState('');
-  const [workModes, setWorkModes] = useState<string[]>(preference?.work_modes || ['Remote']);
-  const [employmentTypes, setEmploymentTypes] = useState<string[]>(preference?.employment_types || ['Full-time']);
+  const [workModes, setWorkModes] = useState<string[]>(preference?.work_modes || []);
+  const [employmentTypes, setEmploymentTypes] = useState<string[]>(preference?.employment_types || []);
   const [minSalary, setMinSalary] = useState<string>(preference?.min_salary ? String(preference.min_salary) : '');
   const [maxSalary, setMaxSalary] = useState<string>(preference?.max_salary ? String(preference.max_salary) : '');
+  const [currency, setCurrency] = useState<string>(preference?.currency || 'USD');
 
   // Notification Config state
-  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
   const [minMatchScore, setMinMatchScore] = useState(60);
   const [webhookUrl, setWebhookUrl] = useState('');
 
@@ -30,10 +31,11 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
     if (preference) {
       setKeywords(preference.keywords || []);
       setLocations(preference.locations || []);
-      setWorkModes(preference.work_modes || ['Remote']);
-      setEmploymentTypes(preference.employment_types || ['Full-time']);
+      setWorkModes(preference.work_modes || []);
+      setEmploymentTypes(preference.employment_types || []);
       setMinSalary(preference.min_salary ? String(preference.min_salary) : '');
       setMaxSalary(preference.max_salary ? String(preference.max_salary) : '');
+      setCurrency(preference.currency || 'USD');
     }
 
     // Fetch persisted notification settings
@@ -100,6 +102,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
             employment_types: employmentTypes,
             min_salary: minSalary ? parseFloat(minSalary) : null,
             max_salary: maxSalary ? parseFloat(maxSalary) : null,
+            currency,
           }),
         }),
         ApiClient.fetch('/preferences/notifications', {
@@ -280,22 +283,43 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({ preference, on
 
         {/* Salary Range */}
         <div className="pt-4 border-t border-slate-800/80">
-          <label className="block text-sm font-semibold text-slate-200 mb-3">Expected Target Salary Range (USD)</label>
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="number"
-              value={minSalary}
-              onChange={(e) => setMinSalary(e.target.value)}
-              placeholder="Minimum (e.g. 50000)"
-              className="w-full bg-slate-900 text-sm text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
-            />
-            <input
-              type="number"
-              value={maxSalary}
-              onChange={(e) => setMaxSalary(e.target.value)}
-              placeholder="Maximum (e.g. 120000)"
-              className="w-full bg-slate-900 text-sm text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
-            />
+          <label className="block text-sm font-semibold text-slate-200 mb-3">Expected Target Salary Range</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Currency</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full bg-slate-900 text-sm text-slate-100 rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="CAD">CAD ($)</option>
+                <option value="PKR">PKR (Rs)</option>
+                <option value="INR">INR (₹)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Minimum Compensation</label>
+              <input
+                type="number"
+                value={minSalary}
+                onChange={(e) => setMinSalary(e.target.value)}
+                placeholder="Minimum (e.g. 50000)"
+                className="w-full bg-slate-900 text-sm text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Maximum Compensation</label>
+              <input
+                type="number"
+                value={maxSalary}
+                onChange={(e) => setMaxSalary(e.target.value)}
+                placeholder="Maximum (e.g. 120000)"
+                className="w-full bg-slate-900 text-sm text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
           </div>
         </div>
 

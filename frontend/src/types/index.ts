@@ -18,6 +18,7 @@ export interface JobPreference {
   min_salary: number | null;
   max_salary: number | null;
   currency: string;
+  is_configured?: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -48,8 +48,7 @@ async def update_preferences(
 
     update_data = pref_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        if value is not None:
-            setattr(pref, field, value)
+        setattr(pref, field, value)
 
     await db.commit()
     await db.refresh(pref)

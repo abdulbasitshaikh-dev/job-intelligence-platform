@@ -45,15 +45,22 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
-    # Create default empty preference & notification config
+    # Create explicit empty initial preferences & notification config
     pref = JobPreference(
         user_id=user.id,
-        keywords=["Python", "FastAPI", "Backend"],
-        locations=["Remote", "Pakistan"],
-        employment_types=["Full-time"],
-        work_modes=["Remote"],
+        keywords=[],
+        locations=[],
+        employment_types=[],
+        work_modes=[],
+        min_salary=None,
+        max_salary=None,
+        currency="USD",
     )
-    notif = NotificationConfig(user_id=user.id, email_notifications=True, min_match_score=60)
+    notif = NotificationConfig(
+        user_id=user.id,
+        email_notifications=False,
+        min_match_score=60,
+    )
     db.add(pref)
     db.add(notif)
     await db.commit()

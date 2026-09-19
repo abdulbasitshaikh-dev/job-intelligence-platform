@@ -23,8 +23,6 @@ from app.scrapers.sources.arbeitnow import ArbeitnowScraper
 from app.scrapers.sources.remote_ok import RemoteOKScraper
 
 
-
-
 async def seed_default_data():
     """Seed initial job sources and, in development only, demo accounts.
 

@@ -1,64 +1,131 @@
-from typing import List
+import re
+from typing import List, Optional
 
 from app.models.job import Job
 from app.models.user import JobPreference
 from app.schemas.job import MatchReason, MatchScoreResponse
 
+# Non-geographic location tokens to exclude from geographic location matching
+NON_GEOGRAPHIC_TOKENS = {
+    "remote",
+    "anywhere",
+    "worldwide",
+    "wfh",
+    "work from home",
+    "global",
+    "telecommute",
+}
+
+
+def match_keyword_token(kw: str, text: str) -> bool:
+    """Robust keyword matching with word-boundaries that preserves technical symbols.
+
+    Prevents false positives:
+      - 'Go' does not match 'good' or 'Google'
+      - 'C' does not match 'customer' or 'cloud'
+      - 'Java' does not match 'JavaScript'
+      - 'R' does not match 'remote'
+
+    Supports technical keywords:
+      - 'C++', 'C#', '.NET', 'Node.js', 'Next.js', 'React Native', 'FastAPI', 'PostgreSQL'
+    """
+    if not kw or not text:
+        return False
+
+    k = kw.strip().lower()
+    t = text.lower()
+
+    if not k or not t:
+        return False
+
+    # Specific technical keyword patterns
+    if k in ("c++", "cpp"):
+        return bool(re.search(r"(?:^|[^\w+])c\+\+(?:[^\w+]|$)", t))
+    if k in ("c#", "csharp"):
+        return bool(re.search(r"(?:^|[^\w#])c#(?:[^\w#]|$)", t))
+    if k in (".net", "dotnet"):
+        return bool(re.search(r"(?:^|[^\w])(?:\.net|dotnet)(?:[^\w]|$)", t))
+    if k in ("node.js", "nodejs"):
+        return bool(re.search(r"\b(?:node\.js|nodejs)\b", t))
+    if k in ("next.js", "nextjs"):
+        return bool(re.search(r"\b(?:next\.js|nextjs)\b", t))
+    if k == "react native":
+        return bool(re.search(r"\breact\s+native\b", t))
+    if k == "react":
+        # Match 'react' as standalone word, but exclude 'react native' if matched separately
+        return bool(re.search(r"\breact\b", t))
+    if k in ("postgresql", "postgres"):
+        return bool(re.search(r"\b(?:postgresql|postgres)\b", t))
+    if k == "c":
+        # Single letter 'c' must not be followed by '+' or '#'
+        return bool(re.search(r"(?:^|[^\w+#])c(?:[^\w+#]|$)", t))
+    if k == "r":
+        # Single letter 'r'
+        return bool(re.search(r"(?:^|[^\w])r(?:[^\w]|$)", t))
+
+    # General word-boundary pattern for multi-character terms
+    pattern = r"\b" + re.escape(k) + r"\b"
+    return bool(re.search(pattern, t))
+
 
 class MatchingService:
-    """Deterministic Job Preference Matching Engine."""
+    """Deterministic, Explainable Job Preference Matching Engine."""
 
     @staticmethod
-    def calculate_match_score(job: Job, preference: JobPreference) -> MatchScoreResponse:
-        total_score = 0
-        reasons: List[MatchReason] = []
-
+    def has_meaningful_preferences(preference: Optional[JobPreference]) -> bool:
+        """Check if preference contains at least one user-specified filter."""
         if not preference:
-            return MatchScoreResponse(
-                job_id=job.id,
-                user_id=0,
-                total_score=0,
-                reasons=[MatchReason(category="Default", points=0, description="Set preferences to see your match score.")],
-            )
-
-        has_any_pref = bool(
+            return False
+        return bool(
             (preference.keywords and len(preference.keywords) > 0)
             or (preference.locations and len(preference.locations) > 0)
             or (preference.work_modes and len(preference.work_modes) > 0)
             or (preference.employment_types and len(preference.employment_types) > 0)
-            or preference.min_salary
-            or preference.max_salary
+            or preference.min_salary is not None
+            or preference.max_salary is not None
         )
 
-        if not has_any_pref:
+    @staticmethod
+    def calculate_match_score(job: Job, preference: Optional[JobPreference]) -> MatchScoreResponse:
+        total_score = 0
+        reasons: List[MatchReason] = []
+
+        if not preference or not MatchingService.has_meaningful_preferences(preference):
             return MatchScoreResponse(
                 job_id=job.id,
-                user_id=preference.user_id,
+                user_id=preference.user_id if preference else 0,
                 total_score=0,
-                reasons=[MatchReason(category="Preferences", points=0, description="Set preferences to see your match score.")],
+                reasons=[
+                    MatchReason(
+                        category="Preferences",
+                        points=0,
+                        description="Set preferences to see your match score.",
+                    )
+                ],
             )
 
-        job_title_lower = (job.title or "").lower()
-        job_desc_lower = (job.description or "").lower()
+        job_title = job.title or ""
+        job_desc = job.description or ""
         job_loc_lower = (job.location or "").lower()
 
-        # 1. Keywords (up to 35 pts)
+        # 1. Keywords / Role relevance (up to 40 pts)
+        # Title match: +25 pts per keyword
+        # Description match: +15 pts per keyword
         kw_title_score = 0
         kw_desc_score = 0
         matched_keywords = []
 
-        for kw in preference.keywords or []:
-            kw_clean = kw.lower().strip()
-            if not kw_clean:
-                continue
-            if kw_clean in job_title_lower:
-                kw_title_score += 20
+        configured_keywords = [k.strip() for k in (preference.keywords or []) if k.strip()]
+
+        for kw in configured_keywords:
+            if match_keyword_token(kw, job_title):
+                kw_title_score += 25
                 matched_keywords.append(f"{kw} (in title)")
-            elif kw_clean in job_desc_lower:
-                kw_desc_score += 10
+            elif match_keyword_token(kw, job_desc):
+                kw_desc_score += 15
                 matched_keywords.append(f"{kw} (in description)")
 
-        kw_total = min(35, kw_title_score + kw_desc_score)
+        kw_total = min(40, kw_title_score + kw_desc_score)
         if kw_total > 0:
             total_score += kw_total
             reasons.append(
@@ -69,26 +136,33 @@ class MatchingService:
                 )
             )
 
-        # 2. Location (up to 25 pts)
-        for loc in preference.locations or []:
-            loc_clean = loc.lower().strip()
-            if not loc_clean:
-                continue
-            if loc_clean in job_loc_lower or ("remote" in loc_clean and job.work_mode.value.lower() == "remote"):
+        # 2. Location (up to 20 pts)
+        # Must evaluate actual physical/geographical locations only (e.g. country, city, region)
+        # 'Remote' is strictly evaluated under Work Mode to prevent double-counting.
+        geographic_locations = [
+            loc.strip() for loc in (preference.locations or [])
+            if loc.strip() and loc.strip().lower() not in NON_GEOGRAPHIC_TOKENS
+        ]
+
+        for loc in geographic_locations:
+            loc_clean = loc.lower()
+            if loc_clean in job_loc_lower:
                 reasons.append(
                     MatchReason(
                         category="Location",
-                        points=25,
-                        description=f"+25 Preferred location match: {loc}",
+                        points=20,
+                        description=f"+20 Preferred location match: {loc}",
                     )
                 )
-                total_score += 25
+                total_score += 20
                 break
 
         # 3. Work Mode (up to 20 pts)
+        # Evaluates Remote, Hybrid, On-site
         if preference.work_modes:
-            pref_modes = [m.lower() for m in preference.work_modes]
-            if job.work_mode.value.lower() in pref_modes or "unspecified" in pref_modes:
+            pref_modes = [m.lower().strip() for m in preference.work_modes if m.strip()]
+            job_mode = job.work_mode.value.lower() if hasattr(job.work_mode, "value") else str(job.work_mode).lower()
+            if job_mode in pref_modes or "unspecified" in pref_modes:
                 total_score += 20
                 reasons.append(
                     MatchReason(
@@ -100,8 +174,9 @@ class MatchingService:
 
         # 4. Employment Type (up to 10 pts)
         if preference.employment_types:
-            pref_emp = [e.lower() for e in preference.employment_types]
-            if job.employment_type.value.lower() in pref_emp:
+            pref_emp = [e.lower().strip() for e in preference.employment_types if e.strip()]
+            job_emp = job.employment_type.value.lower() if hasattr(job.employment_type, "value") else str(job.employment_type).lower()
+            if job_emp in pref_emp:
                 total_score += 10
                 reasons.append(
                     MatchReason(
@@ -133,11 +208,24 @@ class MatchingService:
                         )
                     )
 
-        final_score = min(100, total_score)
+        # 6. Role/Skill Relevance Gating
+        # Invariant: If user defined technical/role keywords, but a job matches ZERO keywords,
+        # generic attributes (e.g. Remote + Full-time) cannot produce a misleadingly high match score.
+        if len(configured_keywords) > 0 and kw_total == 0:
+            if total_score > 15:
+                total_score = min(15, total_score // 2)
+                reasons.append(
+                    MatchReason(
+                        category="Role Relevance",
+                        points=0,
+                        description="Score capped: No matching target skills/keywords found for this role",
+                    )
+                )
+
+        final_score = max(0, min(100, total_score))
         return MatchScoreResponse(
             job_id=job.id,
             user_id=preference.user_id,
             total_score=final_score,
             reasons=reasons,
         )
-

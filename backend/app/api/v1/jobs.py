@@ -93,10 +93,13 @@ async def list_jobs(
     for j in jobs:
         resp = JobResponse.model_validate(j)
         resp.source_name = j.source.name if j.source else "Public Source"
-        if preference:
+        if preference and MatchingService.has_meaningful_preferences(preference):
             score_res = MatchingService.calculate_match_score(j, preference)
             resp.match_score = score_res.total_score
             resp.match_reasons = [r.description for r in score_res.reasons]
+        else:
+            resp.match_score = None
+            resp.match_reasons = []
         resp.is_saved = j.id in saved_ids
         resp.application_status = applications.get(j.id)
         items.append(resp)
@@ -185,10 +188,13 @@ async def search_jobs(
     for j in jobs:
         resp = JobResponse.model_validate(j)
         resp.source_name = j.source.name if j.source else "Public Source"
-        if preference:
+        if preference and MatchingService.has_meaningful_preferences(preference):
             score_res = MatchingService.calculate_match_score(j, preference)
             resp.match_score = score_res.total_score
             resp.match_reasons = [r.description for r in score_res.reasons]
+        else:
+            resp.match_score = None
+            resp.match_reasons = []
         resp.is_saved = j.id in saved_ids
         resp.application_status = applications.get(j.id)
         items.append(resp)
@@ -230,10 +236,13 @@ async def get_saved_jobs(
         resp.source_name = j.source.name if j.source else "Public Source"
         resp.is_saved = True
         resp.application_status = applications.get(j.id)
-        if preference:
+        if preference and MatchingService.has_meaningful_preferences(preference):
             score_res = MatchingService.calculate_match_score(j, preference)
             resp.match_score = score_res.total_score
             resp.match_reasons = [r.description for r in score_res.reasons]
+        else:
+            resp.match_score = None
+            resp.match_reasons = []
         items.append(resp)
     return items
 
@@ -256,10 +265,13 @@ async def get_job_detail(
     if current_user:
         pref_stmt = select(JobPreference).where(JobPreference.user_id == current_user.id)
         preference = (await db.execute(pref_stmt)).scalars().first()
-        if preference:
+        if preference and MatchingService.has_meaningful_preferences(preference):
             score_res = MatchingService.calculate_match_score(job, preference)
             resp.match_score = score_res.total_score
             resp.match_reasons = [r.description for r in score_res.reasons]
+        else:
+            resp.match_score = None
+            resp.match_reasons = []
 
         saved_stmt = select(SavedJob).where((SavedJob.user_id == current_user.id) & (SavedJob.job_id == job_id))
         resp.is_saved = (await db.execute(saved_stmt)).scalars().first() is not None

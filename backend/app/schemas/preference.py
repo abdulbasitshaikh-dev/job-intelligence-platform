@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class JobPreferenceCreate(BaseModel):
@@ -38,3 +38,17 @@ class JobPreferenceResponse(BaseModel):
     currency: str
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def is_configured(self) -> bool:
+        """Return True only if user has explicitly specified at least one preference parameter."""
+        return bool(
+            (self.keywords and len(self.keywords) > 0)
+            or (self.locations and len(self.locations) > 0)
+            or (self.employment_types and len(self.employment_types) > 0)
+            or (self.work_modes and len(self.work_modes) > 0)
+            or self.min_salary is not None
+            or self.max_salary is not None
+        )
+

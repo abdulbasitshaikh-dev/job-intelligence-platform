@@ -9,6 +9,7 @@ import { SourcesModal } from './components/SourcesModal';
 import { ApplicationsBoard } from './components/ApplicationsBoard';
 import { PreferencesForm } from './components/PreferencesForm';
 import { AdminDashboard } from './components/AdminDashboard';
+import { OnboardingModal } from './components/OnboardingModal';
 import { ApiClient } from './lib/api';
 import { Job, JobApplication, JobPreference, PaginatedResponse, PlatformStats, User } from './types';
 import { Sparkles, Briefcase, ChevronLeft, ChevronRight, Bookmark, RefreshCw, Database, Globe } from 'lucide-react';
@@ -19,6 +20,8 @@ export const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Platform Telemetry
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
@@ -55,6 +58,20 @@ export const App: React.FC = () => {
       .then((data) => setPlatformStats(data))
       .catch((err) => console.warn('Could not load platform stats', err));
   }, []);
+
+  // Check preferences and trigger onboarding if not configured
+  useEffect(() => {
+    if (currentUser) {
+      ApiClient.fetch<JobPreference>('/preferences')
+        .then((pref) => {
+          setPreference(pref);
+          if (!pref.is_configured && !onboardingDismissed) {
+            setIsOnboardingOpen(true);
+          }
+        })
+        .catch((err) => console.warn('Could not load preferences', err));
+    }
+  }, [currentUser, onboardingDismissed]);
 
   // Fetch Jobs Feed
   const fetchJobs = async () => {
@@ -168,6 +185,8 @@ export const App: React.FC = () => {
         onLogout={() => {
           ApiClient.clearTokens();
           setCurrentUser(null);
+          setPreference(null);
+          setOnboardingDismissed(false);
           setActiveTab('feed');
         }}
         onOpenAuth={() => setIsAuthOpen(true)}
@@ -288,7 +307,13 @@ export const App: React.FC = () => {
                     currentUser={currentUser}
                     onSaveToggle={handleSaveToggle}
                     onApplicationChange={handleApplicationChange}
-                    onShowMatchDetails={(j) => setSelectedJobMatch(j)}
+                    onShowMatchDetails={(j) => {
+                      if (!preference?.is_configured) {
+                        setIsOnboardingOpen(true);
+                      } else {
+                        setSelectedJobMatch(j);
+                      }
+                    }}
                     onRequireAuth={() => setIsAuthOpen(true)}
                   />
                 ))}
@@ -347,7 +372,13 @@ export const App: React.FC = () => {
                     currentUser={currentUser}
                     onSaveToggle={handleSaveToggle}
                     onApplicationChange={handleApplicationChange}
-                    onShowMatchDetails={(j) => setSelectedJobMatch(j)}
+                    onShowMatchDetails={(j) => {
+                      if (!preference?.is_configured) {
+                        setIsOnboardingOpen(true);
+                      } else {
+                        setSelectedJobMatch(j);
+                      }
+                    }}
                     onRequireAuth={() => setIsAuthOpen(true)}
                   />
                 ))}
@@ -371,6 +402,19 @@ export const App: React.FC = () => {
       </main>
 
       <MatchScoreModal job={selectedJobMatch} onClose={() => setSelectedJobMatch(null)} />
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onComplete={(newPref) => {
+          setPreference(newPref);
+          setIsOnboardingOpen(false);
+          fetchJobs();
+        }}
+        onSkip={() => {
+          setIsOnboardingOpen(false);
+          setOnboardingDismissed(true);
+        }}
+      />
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onAuthSuccess={(user) => setCurrentUser(user)} />
       <HowItWorksModal isOpen={isHowItWorksOpen} onClose={() => setIsHowItWorksOpen(false)} />
       <SourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />

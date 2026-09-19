@@ -31,11 +31,11 @@ export const MatchScoreModal: React.FC<MatchScoreModalProps> = ({ job, onClose }
         </div>
 
         <div className="bg-slate-900/90 rounded-xl p-4 border border-slate-800 text-center mb-5">
-          <div className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-400">
-            {job.match_score || 0}%
+          <div className="text-3xl sm:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-400">
+            {job.match_score !== null && job.match_score !== undefined ? `${job.match_score}%` : 'Not Configured'}
           </div>
           <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 inline-block">
-            Match Compatibility Index
+            {job.match_score !== null && job.match_score !== undefined ? 'Match Compatibility Index' : 'Preferences Required for Matching'}
           </span>
         </div>
 
@@ -49,8 +49,8 @@ export const MatchScoreModal: React.FC<MatchScoreModalProps> = ({ job, onClose }
               </div>
             ))
           ) : (
-            <p className="text-sm text-slate-400 text-center py-3">
-              Configure your preferences (keywords, location, work mode) to calculate score breakdowns.
+            <p className="text-sm text-slate-400 text-center py-4 bg-slate-900/40 rounded-xl border border-slate-800/60">
+              Set your target keywords, location, and work preferences in the Preferences tab to see a personalized score breakdown.
             </p>
           )}
         </div>
